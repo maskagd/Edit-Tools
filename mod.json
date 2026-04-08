@@ -1,0 +1,186 @@
+{
+	"geode": "5.5.3",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "maskagd.edit_tools",
+	"name": "Edit Tools",
+	"version": "v1.0.0",
+	"developer": "maskagd",
+	"description": "Adds new tools for editing objects",
+	"resources": {
+		"sprites": [
+			"res/*.png"
+		]           
+	},
+    "tags": [
+        "editor",
+        "offline",
+        "utility"
+    ],
+	"links": {
+        "source": "https://github.com/maskagd/Edit-Tools",
+        "homepage": "https://www.youtube.com/@maskagd"
+    },
+	"dependencies": {
+		"geode.node-ids": ">=v1.20.0"
+	},
+	"settings": {
+		"toolbar-buttons": {
+			"type": "title",
+			"name": "General Settings"
+		},
+            "toolbar-show-connect": {
+                "type": "bool",
+                "name": "Show Connect in toolbar",
+                "default": false
+            },
+            "toolbar-show-fill": {
+                "type": "bool",
+                "name": "Show Fill in toolbar",
+                "default": false
+            },
+            "toolbar-show-replace-type": {
+                "type": "bool",
+                "name": "Show Replace Type in toolbar",
+                "default": false
+            },
+            "toolbar-show-circle": {
+                "type": "bool",
+                "name": "Show Circle in toolbar",
+                "default": false
+            },
+            "toolbar-show-connect-trigger": {
+                "type": "bool",
+                "name": "Show Connect Trigger in toolbar",
+                "default": false
+            },
+            "toolbar-show-disconnect-trigger": {
+                "type": "bool",
+                "name": "Show Disconnect Trigger in toolbar",
+                "default": false
+            },
+            "grid-size": {
+                "type": "float",
+                "name": "Grid Size",
+                "default": 30,
+                "min": 1,
+                "max": 120
+            },
+
+		"connect-two-objects": {
+			"type": "title",
+			"name": "Connect Two Objects Settings"
+		},
+            "connect-first-properties": {
+                "type": "bool",
+                "name": "Use first object's properties",
+                "default": true
+            },
+            "connect-grid-alignment": {
+                "type": "bool",
+                "name": "Align to grid",
+                "default": false
+            },
+		"fill-objects": {
+			"type": "title",
+			"name": "Fill Area Settings"
+		},
+            "fill-first-properties": {
+                "type": "bool",
+                "name": "Use first object's properties",
+                "default": true
+            },
+            "fill-grid-alignment": {
+                "type": "bool",
+                "name": "Align to grid",
+                "default": false
+            },
+		"circle-objects": {
+			"type": "title",
+			"name": "Circle Tool Settings"
+		},
+            "circle-first-center": {
+                "type": "bool",
+                "name": "Use first object as center",
+                "default": true
+            },
+            "circle-spacing": {
+                "type": "float",
+                "name": "Circle spacing",
+                "default": 30,
+                "min": 1,
+                "max": 300
+            },
+            "circle-grid-alignment": {
+                "type": "bool",
+                "name": "Align circle to grid",
+                "default": false
+            },
+            "circle-rotate-objects": {
+                "type": "bool",
+                "name": "Rotate circle objects",
+                "default": false
+            },
+		"disconnect-trigger": {
+			"type": "title",
+			"name": "Disconnect Trigger Settings"
+		},
+            "disconnect-clear-target-group": {
+                "type": "bool",
+                "name": "clear group on triggers",
+                "default": false
+            },
+
+        "hotkeys": {
+			"type": "title",
+			"name": "Hotkeys"
+		},
+            "keybind-open-popup": {
+                "type": "keybind",
+                "name": "Open tools popup",
+                "category": "editor",
+                "default": "Ctrl+U"
+            },
+            "keybind-connect": {
+                "type": "keybind",
+                "name": "Connect Objects",
+                "category": "editor",
+                "default": "Ctrl+I"
+            },
+            "keybind-fill": {
+                "type": "keybind",
+                "name": "Fill Objects",
+                "category": "editor",
+                "default": "Ctrl+O"
+            },
+            "keybind-replace-type": {
+                "type": "keybind",
+                "name": "Replace Object Type",
+                "category": "editor",
+                "default": "Ctrl+R"
+            },
+            "keybind-circle": {
+                "type": "keybind",
+                "name": "Circle Objects",
+                "category": "editor",
+                "default": "Ctrl+P"
+            },
+            "keybind-connect-trigger": {
+                "type": "keybind",
+                "name": "Connect Trigger",
+                "category": "editor",
+                "default": "Ctrl+F"
+            },
+            "keybind-disconnect-trigger": {
+                "type": "keybind",
+                "name": "Disconnect Trigger",
+                "category": "editor",
+                "default": "Ctrl+G"
+            }
+	}
+
+}
