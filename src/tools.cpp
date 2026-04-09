@@ -13,9 +13,25 @@
 
 namespace tools {
     namespace {
+        constexpr float kFloatTolerance = 0.001f;
+
+        bool nearlyEqual(float first, float second) {
+            return std::abs(first - second) < kFloatTolerance;
+        }
+
+        bool nearlyEqual(cocos2d::CCPoint first, cocos2d::CCPoint second) {
+            return nearlyEqual(first.x, second.x) && nearlyEqual(first.y, second.y);
+        }
+
         float alignToGrid(float value) {
-            float kGridSize = Mod::get()->getSettingValue<float>("grid-size");
-            return std::round(value / kGridSize) * kGridSize - kGridSize / 2.0f;
+            float gridSize = Mod::get()->getSettingValue<float>("grid-size");
+            return std::round(value / gridSize) * gridSize - gridSize / 2.0f;
+        }
+
+        bool hasPosition(std::vector<cocos2d::CCPoint> const& positions, cocos2d::CCPoint const& target) {
+            return std::ranges::any_of(positions, [&](cocos2d::CCPoint const& position) {
+                return nearlyEqual(position, target);
+            });
         }
 
         void copyObjectProperties(GameObject* object, GameObject* source) {
@@ -62,6 +78,15 @@ namespace tools {
             return result;
         }
 
+        GameObject* pasteObjectFromSaveString(EditorUI* editorUI, std::string const& saveString) {
+            auto* pastedObjects = editorUI->pasteObjects(saveString, true, false);
+            if (!pastedObjects || pastedObjects->count() == 0) {
+                return nullptr;
+            }
+
+            return static_cast<GameObject*>(pastedObjects->objectAtIndex(0));
+        }
+
         void selectCreatedObjects(EditorUI* editorUI, GameObject* first, cocos2d::CCArray* createdObjects, GameObject* second) {
             if (!createdObjects || createdObjects->count() == 0) {
                 return;
@@ -96,6 +121,7 @@ namespace tools {
         auto* first = static_cast<GameObject*>(selectedObjs->objectAtIndex(0));
         auto* second = static_cast<GameObject*>(selectedObjs->objectAtIndex(1));
         bool useFirst = Mod::get()->getSettingValue<bool>("connect-first-properties");
+        bool gridAlignment = Mod::get()->getSettingValue<bool>("connect-grid-alignment");
         auto* source = useFirst ? first : second;
         auto firstPos = first->getPosition();
         auto secondPos = second->getPosition();
@@ -107,8 +133,11 @@ namespace tools {
 
         auto delta = ccpSub(secondPos, firstPos);
         auto distance = ccpLength(delta);
-        auto bounds = source->boundingBox();
-        float step = std::abs(delta.x) >= std::abs(delta.y) ? bounds.size.width : bounds.size.height;
+        float step = Mod::get()->getSettingValue<float>("grid-size");
+        if (!gridAlignment) {
+            auto bounds = source->boundingBox();
+            step = std::abs(delta.x) >= std::abs(delta.y) ? bounds.size.width : bounds.size.height;
+        }
         if (step <= 0.0f) {
             return;
         }
@@ -119,14 +148,18 @@ namespace tools {
         }
 
         auto* editorLayer = LevelEditorLayer::get();
-        bool gridAlignment = Mod::get()->getSettingValue<bool>("connect-grid-alignment");
         auto* filledObjects = cocos2d::CCArray::create();
+        std::vector<cocos2d::CCPoint> createdPositions;
         for (int i = 1; i <= fillCount; ++i) {
             float t = static_cast<float>(i) / static_cast<float>(fillCount + 1);
             auto position = ccpAdd(firstPos, ccpMult(delta, t));
             if (gridAlignment) {
                 position.x = alignToGrid(position.x);
                 position.y = alignToGrid(position.y);
+            }
+
+            if (nearlyEqual(position, firstPos) || nearlyEqual(position, secondPos) || hasPosition(createdPositions, position)) {
+                continue;
             }
 
             auto* object = editorLayer->createObject(source->m_objectID, position, false);
@@ -136,6 +169,7 @@ namespace tools {
 
             copyObjectProperties(object, source);
             filledObjects->addObject(object);
+            createdPositions.push_back(position);
         }
 
         selectCreatedObjects(editorUI, first, filledObjects, second);
@@ -167,6 +201,7 @@ namespace tools {
         }
 
         bool gridAlignment = Mod::get()->getSettingValue<bool>("fill-grid-alignment");
+        bool outlineOnly = Mod::get()->getSettingValue<bool>("fill-outline-only");
         float gridSize = Mod::get()->getSettingValue<float>("grid-size");
 
         float startX = std::min(firstPos.x, secondPos.x);
@@ -195,11 +230,21 @@ namespace tools {
 
         for (float x = startX; x <= endX + 0.001f; x += stepX) {
             for (float y = startY; y <= endY + 0.001f; y += stepY) {
+                if (outlineOnly) {
+                    bool onLeftEdge = nearlyEqual(x, startX);
+                    bool onRightEdge = nearlyEqual(x, endX);
+                    bool onBottomEdge = nearlyEqual(y, startY);
+                    bool onTopEdge = nearlyEqual(y, endY);
+                    if (!onLeftEdge && !onRightEdge && !onBottomEdge && !onTopEdge) {
+                        continue;
+                    }
+                }
+
                 auto position = ccp(x, y);
-                if (std::abs(position.x - firstPos.x) < 0.001f && std::abs(position.y - firstPos.y) < 0.001f) {
+                if (nearlyEqual(position, firstPos)) {
                     continue;
                 }
-                if (std::abs(position.x - secondPos.x) < 0.001f && std::abs(position.y - secondPos.y) < 0.001f) {
+                if (nearlyEqual(position, secondPos)) {
                     continue;
                 }
 
@@ -231,20 +276,37 @@ namespace tools {
 
         auto* first = static_cast<GameObject*>(selectedObjs->objectAtIndex(0));
         auto* second = static_cast<GameObject*>(selectedObjs->objectAtIndex(1));
+        bool swapBoth = Mod::get()->getSettingValue<bool>("replace-swap-both");
 
         auto* editorLayer = LevelEditorLayer::get();
-        auto saveString = replaceObjectIDInSaveString(first->getSaveString(editorLayer), second->m_objectID);
-        editorLayer->removeObject(first, false);
+        auto firstSaveString = replaceObjectIDInSaveString(first->getSaveString(editorLayer), second->m_objectID);
+        std::string secondSaveString;
+        if (swapBoth) {
+            secondSaveString = replaceObjectIDInSaveString(second->getSaveString(editorLayer), first->m_objectID);
+        }
 
-        auto* pastedObjects = editorUI->pasteObjects(saveString, true, false);
-        if (!pastedObjects || pastedObjects->count() == 0) {
+        auto* firstReplacement = pasteObjectFromSaveString(editorUI, firstSaveString);
+        if (!firstReplacement) {
             return;
         }
-        auto* replacement = static_cast<GameObject*>(pastedObjects->objectAtIndex(0));
+
+        GameObject* secondReplacement = second;
+        if (swapBoth) {
+            secondReplacement = pasteObjectFromSaveString(editorUI, secondSaveString);
+            if (!secondReplacement) {
+                editorLayer->removeObject(firstReplacement, false);
+                return;
+            }
+        }
+
+        editorLayer->removeObject(first, false);
+        if (swapBoth) {
+            editorLayer->removeObject(second, false);
+        }
 
         auto* selectedAfterReplace = cocos2d::CCArray::create();
-        selectedAfterReplace->addObject(replacement);
-        selectedAfterReplace->addObject(second);
+        selectedAfterReplace->addObject(firstReplacement);
+        selectedAfterReplace->addObject(secondReplacement);
 
         editorUI->deselectAll();
         editorUI->selectObjects(selectedAfterReplace, false);
@@ -302,6 +364,7 @@ namespace tools {
 
         auto* editorLayer = LevelEditorLayer::get();
         auto* createdObjects = cocos2d::CCArray::create();
+        std::vector<cocos2d::CCPoint> createdPositions;
         for (int i = 1; i < objectCount; ++i) {
             float angle = startAngle + angleStep * static_cast<float>(i);
             auto position = ccp(
@@ -314,10 +377,10 @@ namespace tools {
                 position.y = alignToGrid(position.y);
             }
 
-            if (std::abs(position.x - centerPos.x) < 0.001f && std::abs(position.y - centerPos.y) < 0.001f) {
+            if (nearlyEqual(position, centerPos)) {
                 continue;
             }
-            if (std::abs(position.x - sourcePos.x) < 0.001f && std::abs(position.y - sourcePos.y) < 0.001f) {
+            if (nearlyEqual(position, sourcePos) || hasPosition(createdPositions, position)) {
                 continue;
             }
 
@@ -329,13 +392,14 @@ namespace tools {
             copyObjectProperties(object, source);
             if (rotateObjects) {
                 float angleOffset = (angle - startAngle) * 180.0f / static_cast<float>(std::numbers::pi);
-                object->setRotation(sourceRotation + angleOffset);
+                object->setRotation(sourceRotation - angleOffset);
             }
             createdObjects->addObject(object);
+            createdPositions.push_back(position);
         }
 
         selectCreatedObjects(editorUI, first, createdObjects, second);
-    }
+    }   
 
     void connectTrigger(EditorUI* editorUI, CCObject* sender) {
         static_cast<void>(sender);

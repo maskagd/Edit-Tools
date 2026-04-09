@@ -41,7 +41,7 @@ protected:
     }
 
     bool init(EditorUI* editorUI) {
-        if (!Popup::init(290.f, 150.f, "GJ_square05.png")) {
+        if (!Popup::init(290.f, 150.f, "GJ_square02.png")) {
             return false;
         }
 

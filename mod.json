@@ -8,7 +8,7 @@
 	},
 	"id": "maskagd.edit_tools",
 	"name": "Edit Tools",
-	"version": "v1.0.0",
+	"version": "v1.1.0",
 	"developer": "maskagd",
 	"description": "Adds new tools for editing objects",
 	"resources": {
@@ -94,10 +94,24 @@
                 "name": "Use first object's properties",
                 "default": true
             },
+            "fill-outline-only": {
+                "type": "bool",
+                "name": "Create outline only",
+                "default": false
+            },
             "fill-grid-alignment": {
                 "type": "bool",
                 "name": "Align to grid",
                 "default": false
+            },
+		"replace-objects": {
+			"type": "title",
+			"name": "Replace Object Settings"
+		},
+            "replace-swap-both": {
+                "type": "bool",
+                "name": "Swap both selected object types",
+                "default": true
             },
 		"circle-objects": {
 			"type": "title",
