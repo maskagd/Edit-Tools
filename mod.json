@@ -8,7 +8,7 @@
 	},
 	"id": "maskagd.edit_tools",
 	"name": "Edit Tools",
-	"version": "v1.1.0",
+	"version": "v1.2.0",
 	"developer": "maskagd",
 	"description": "Adds new tools for editing objects",
 	"resources": {
@@ -48,6 +48,11 @@
                 "name": "Show Replace Type in toolbar",
                 "default": false
             },
+            "toolbar-show-replicate": {
+                "type": "bool",
+                "name": "Show Replicate Object in toolbar",
+                "default": false
+            },
             "toolbar-show-circle": {
                 "type": "bool",
                 "name": "Show Circle in toolbar",
@@ -61,6 +66,11 @@
             "toolbar-show-disconnect-trigger": {
                 "type": "bool",
                 "name": "Show Disconnect Trigger in toolbar",
+                "default": false
+            },
+            "toolbar-show-spawned": {
+                "type": "bool",
+                "name": "Show Spawn Triggers in toolbar",
                 "default": false
             },
             "grid-size": {
@@ -137,7 +147,7 @@
             "circle-rotate-objects": {
                 "type": "bool",
                 "name": "Rotate circle objects",
-                "default": false
+                "default": true
             },
 		"disconnect-trigger": {
 			"type": "title",
@@ -146,6 +156,15 @@
             "disconnect-clear-target-group": {
                 "type": "bool",
                 "name": "clear group on triggers",
+                "default": false
+            },
+		"spawned-trigger": {
+			"type": "title",
+			"name": "Spawn Triggers Settings"
+		},
+            "spawned-enable-multi-trigger": {
+                "type": "bool",
+                "name": "also enable multi trigger",
                 "default": false
             },
 
@@ -177,6 +196,12 @@
                 "category": "editor",
                 "default": "Ctrl+R"
             },
+            "keybind-replicate-object": {
+                "type": "keybind",
+                "name": "Replicate Object",
+                "category": "editor",
+                "default": "Shift+R"
+            },
             "keybind-circle": {
                 "type": "keybind",
                 "name": "Circle Objects",
@@ -194,6 +219,12 @@
                 "name": "Disconnect Trigger",
                 "category": "editor",
                 "default": "Ctrl+G"
+            },
+            "keybind-spawned-trigger": {
+                "type": "keybind",
+                "name": "Spawn Triggers",
+                "category": "editor",
+                "default": "Shift+F"
             }
 	}
 

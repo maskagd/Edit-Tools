@@ -3,6 +3,7 @@
 #include <cmath>
 #include <numbers>
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <vector>
 #include <Geode/c++stl/gdstdlib.hpp>
@@ -14,7 +15,8 @@
 namespace tools {
     namespace {
         constexpr float kFloatTolerance = 0.001f;
-
+        constexpr int kSpawnTriggerObjectID = 1268;
+        
         bool nearlyEqual(float first, float second) {
             return std::abs(first - second) < kFloatTolerance;
         }
@@ -32,6 +34,63 @@ namespace tools {
             return std::ranges::any_of(positions, [&](cocos2d::CCPoint const& position) {
                 return nearlyEqual(position, target);
             });
+        }
+
+        cocos2d::CCArray* copySelection(cocos2d::CCArray* objects) {
+            auto* copiedObjects = cocos2d::CCArray::create();
+            if (!objects) {
+                return copiedObjects;
+            }
+
+            for (unsigned int i = 0; i < objects->count(); ++i) {
+                copiedObjects->addObject(objects->objectAtIndex(i));
+            }
+
+            return copiedObjects;
+        }
+
+        void refreshEditorUI(EditorUI* editorUI) {
+            if (!editorUI) {
+                return;
+            }
+
+            editorUI->updateButtons();
+            editorUI->updateEditMenu();
+            editorUI->updateObjectInfoLabel();
+        }
+
+        void selectObjectsAndRefresh(EditorUI* editorUI, cocos2d::CCArray* objects) {
+            if (!editorUI || !objects) {
+                return;
+            }
+
+            editorUI->deselectAll();
+            editorUI->selectObjects(objects, false);
+            refreshEditorUI(editorUI);
+        }
+
+        void refreshObjectState(LevelEditorLayer* editorLayer, GameObject* object, bool refreshSpecial = false) {
+            if (!editorLayer || !object) {
+                return;
+            }
+
+            if (refreshSpecial) {
+                editorLayer->refreshSpecial(object);
+            }
+
+            editorLayer->updateObjectSection(object);
+            LevelEditorLayer::updateObjectLabel(object);
+        }
+
+        void assignGroup(LevelEditorLayer* editorLayer, GameObject* object, int groupID) {
+            if (!editorLayer || !object || groupID <= 0) {
+                return;
+            }
+
+            editorLayer->addToGroup(object, groupID, false);
+            if (!object->belongsToGroup(groupID)) {
+                object->addToGroup(groupID);
+            }
         }
 
         void copyObjectProperties(GameObject* object, GameObject* source) {
@@ -99,9 +158,7 @@ namespace tools {
             }
             allSelectedObjects->addObject(second);
 
-            editorUI->deselectAll();
-            editorUI->selectObjects(allSelectedObjects, false);
-            editorUI->updateButtons();
+            selectObjectsAndRefresh(editorUI, allSelectedObjects);
         }
     }
 
@@ -308,9 +365,60 @@ namespace tools {
         selectedAfterReplace->addObject(firstReplacement);
         selectedAfterReplace->addObject(secondReplacement);
 
-        editorUI->deselectAll();
-        editorUI->selectObjects(selectedAfterReplace, false);
-        editorUI->updateButtons();
+        selectObjectsAndRefresh(editorUI, selectedAfterReplace);
+    }
+
+    void replicateObject(EditorUI* editorUI, CCObject* sender) {
+        static_cast<void>(sender);
+
+        if (!editorUI) {
+            return;
+        }
+
+        auto* selectedObjs = editorUI->getSelectedObjects();
+        if (!selectedObjs || selectedObjs->count() < 2) {
+            FLAlertLayer::create("Edit Tools", "Select the <cy>main object</c> first, then the objects to replicate onto", "Ok")->show();
+            return;
+        }
+
+        auto* originalSelection = copySelection(selectedObjs);
+        auto* source = static_cast<GameObject*>(originalSelection->objectAtIndex(0));
+        auto* selectedAfterReplicate = cocos2d::CCArray::create();
+        selectedAfterReplicate->addObject(source);
+
+        auto* editorLayer = LevelEditorLayer::get();
+        std::vector<GameObject*> createdObjects;
+        std::vector<GameObject*> objectsToRemove;
+
+        for (unsigned int i = 1; i < originalSelection->count(); ++i) {
+            auto* target = static_cast<GameObject*>(originalSelection->objectAtIndex(i));
+            if (target->m_objectID == source->m_objectID) {
+                selectedAfterReplicate->addObject(target);
+                continue;
+            }
+
+            auto saveString = replaceObjectIDInSaveString(target->getSaveString(editorLayer), source->m_objectID);
+            auto* replacement = pasteObjectFromSaveString(editorUI, saveString);
+            if (!replacement) {
+                for (auto* createdObject : createdObjects) {
+                    editorLayer->removeObject(createdObject, false);
+                }
+
+                selectObjectsAndRefresh(editorUI, originalSelection);
+                FLAlertLayer::create("Edit Tools", "Failed to replicate one of the selected objects", "Ok")->show();
+                return;
+            }
+
+            createdObjects.push_back(replacement);
+            objectsToRemove.push_back(target);
+            selectedAfterReplicate->addObject(replacement);
+        }
+
+        for (auto* target : objectsToRemove) {
+            editorLayer->removeObject(target, false);
+        }
+
+        selectObjectsAndRefresh(editorUI, selectedAfterReplicate);
     }
 
     void circleObjects(EditorUI* editorUI, CCObject* sender) {
@@ -410,7 +518,7 @@ namespace tools {
 
         auto* selectedObjs = editorUI->getSelectedObjects();
         if (!selectedObjs || selectedObjs->count() < 2) {
-            FLAlertLayer::create("Edit Tools", "Select <cy>trigger</c> and <cy>objects</c>", "Ok")->show();
+            FLAlertLayer::create("Edit Tools", "Select <cy>triggers and objects</c> or at least <cy>two triggers</c>", "Ok")->show();
             return;
         }
 
@@ -427,31 +535,44 @@ namespace tools {
             }
         }
 
-        if (effectObjects.empty() || gameObjects.empty()) {
-            FLAlertLayer::create("Edit Tools", "Need at least <cy>one trigger</c> and <cy>one object</c>", "Ok")->show();
-            return;
-        }
-
         auto* editorLayer = LevelEditorLayer::get();
         gd::unordered_set<int> excludedGroups;
         int groupID = editorLayer->getNextFreeGroupID(excludedGroups);
 
-        for (auto* object : gameObjects) {
-            editorLayer->addToGroup(object, groupID, false);
-            if (!object->belongsToGroup(groupID)) {
-                object->addToGroup(groupID);
+        if (gameObjects.empty()) {
+            if (effectObjects.size() < 2) {
+                FLAlertLayer::create("Edit Tools", "Select the <cy>activating trigger</c> first, then the triggers it should activate", "Ok")->show();
+                return;
             }
-            editorLayer->updateObjectSection(object);
-            LevelEditorLayer::updateObjectLabel(object);
+
+            auto* activator = effectObjects.front();
+            for (size_t i = 1; i < effectObjects.size(); ++i) {
+                assignGroup(editorLayer, effectObjects[i], groupID);
+                refreshObjectState(editorLayer, effectObjects[i]);
+            }
+
+            activator->m_targetGroupID = groupID;
+            refreshObjectState(editorLayer, activator);
+            refreshEditorUI(editorUI);
+            return;
+        }
+
+        if (effectObjects.empty()) {
+            FLAlertLayer::create("Edit Tools", "Need at least <cy>one trigger</c> and <cy>one object</c>", "Ok")->show();
+            return;
+        }
+
+        for (auto* object : gameObjects) {
+            assignGroup(editorLayer, object, groupID);
+            refreshObjectState(editorLayer, object);
         }
 
         for (auto* effectObject : effectObjects) {
             effectObject->m_targetGroupID = groupID;
-            editorLayer->updateObjectSection(effectObject);
-            LevelEditorLayer::updateObjectLabel(effectObject);
+            refreshObjectState(editorLayer, effectObject);
         }
 
-        editorUI->updateButtons();
+        refreshEditorUI(editorUI);
     }
 
     void disconnectTrigger(EditorUI* editorUI, CCObject* sender) {
@@ -505,18 +626,95 @@ namespace tools {
                     object->removeFromGroup(groupID);
                 }
             }
-            editorLayer->updateObjectSection(object);
-            LevelEditorLayer::updateObjectLabel(object);
+            refreshObjectState(editorLayer, object);
         }
 
         if (Mod::get()->getSettingValue<bool>("disconnect-clear-target-group")) {
             for (auto* effectObject : effectObjects) {
                 effectObject->m_targetGroupID = 0;
-                editorLayer->updateObjectSection(effectObject);
-                LevelEditorLayer::updateObjectLabel(effectObject);
+                refreshObjectState(editorLayer, effectObject);
             }
         }
 
-        editorUI->updateButtons();
+        refreshEditorUI(editorUI);
+    }
+
+    void spawnedTrigger(EditorUI* editorUI, CCObject* sender) {
+        static_cast<void>(sender);
+
+        if (!editorUI) {
+            return;
+        }
+
+        auto* selectedObjs = editorUI->getSelectedObjects();
+        if (!selectedObjs || selectedObjs->count() == 0) {
+            FLAlertLayer::create("Edit Tools", "Select the <cy>triggers</c> you want to spawn", "Ok")->show();
+            return;
+        }
+
+        std::vector<EffectGameObject*> effectObjects;
+        auto* selectedAfterSpawned = cocos2d::CCArray::create();
+        float minX = std::numeric_limits<float>::max();
+        float maxX = std::numeric_limits<float>::lowest();
+        float maxY = std::numeric_limits<float>::lowest();
+
+        for (unsigned int i = 0; i < selectedObjs->count(); ++i) {
+            auto* object = static_cast<GameObject*>(selectedObjs->objectAtIndex(i));
+            if (!object->m_isTrigger) {
+                continue;
+            }
+
+            auto* effectObject = static_cast<EffectGameObject*>(object);
+            auto position = effectObject->getPosition();
+            minX = std::min(minX, position.x);
+            maxX = std::max(maxX, position.x);
+            maxY = std::max(maxY, position.y);
+            effectObjects.push_back(effectObject);
+            selectedAfterSpawned->addObject(effectObject);
+        }
+
+        if (effectObjects.empty()) {
+            FLAlertLayer::create("Edit Tools", "Select at least <cy>one trigger</c>", "Ok")->show();
+            return;
+        }
+
+        auto* editorLayer = LevelEditorLayer::get();
+        gd::unordered_set<int> excludedGroups;
+        int groupID = editorLayer->getNextFreeGroupID(excludedGroups);
+
+        float gridSize = std::max(Mod::get()->getSettingValue<float>("grid-size"), 1.0f);
+        auto spawnTriggerPosition = ccp(
+            alignToGrid((minX + maxX) / 2.0f),
+            alignToGrid(maxY + std::max(gridSize * 3.0f, 90.0f))
+        );
+
+        auto* spawnTriggerObject = editorLayer->createObject(kSpawnTriggerObjectID, spawnTriggerPosition, false);
+        if (!spawnTriggerObject || !spawnTriggerObject->m_isTrigger) {
+            if (spawnTriggerObject) {
+                editorLayer->removeObject(spawnTriggerObject, false);
+            }
+
+            FLAlertLayer::create("Edit Tools", "Failed to create the <cy>spawn trigger</c>", "Ok")->show();
+            return;
+        }
+
+        auto* spawnTrigger = static_cast<EffectGameObject*>(spawnTriggerObject);
+        bool enableMultiTrigger = Mod::get()->getSettingValue<bool>("spawned-enable-multi-trigger");
+
+        for (auto* effectObject : effectObjects) {
+            assignGroup(editorLayer, effectObject, groupID);
+            effectObject->m_isSpawnTriggered = true;
+            if (enableMultiTrigger) {
+                effectObject->m_isMultiTriggered = true;
+            }
+            refreshObjectState(editorLayer, effectObject, true);
+        }
+
+        spawnTrigger->m_targetGroupID = groupID;
+        refreshObjectState(editorLayer, spawnTrigger, true);
+        editorLayer->dirtifyTriggers();
+
+        selectedAfterSpawned->addObject(spawnTrigger);
+        selectObjectsAndRefresh(editorUI, selectedAfterSpawned);
     }
 }

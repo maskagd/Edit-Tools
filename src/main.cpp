@@ -1,6 +1,7 @@
 #include <Geode/Geode.hpp>
 #include "tools.hpp"
 #include <Geode/binding/ButtonSprite.hpp>
+#include <Geode/binding/FLAlertLayer.hpp>
 #include <Geode/loader/SettingV3.hpp>
 #include <Geode/modify/EditorUI.hpp>
 #include <Geode/ui/GeodeUI.hpp>
@@ -12,14 +13,15 @@ using namespace geode::prelude;
 static CCMenuItemSpriteExtra* createToolButton(
     char const* frameName,
     float scale,
-    geode::Function<void()> callback
+    geode::Function<void()> callback,
+    char const* background = "GJ_button_01.png"
 ) {
     auto* icon = CCSprite::create(frameName);
     if (!icon) {
         return nullptr;
     }
 
-    auto* sprite = ButtonSprite::create(icon, 42, true, 42.f, "GJ_button_01.png", 1.2f);
+    auto* sprite = ButtonSprite::create(icon, 42, true, 42.f, background, 1.2f);
     sprite->setScale(scale);
 
     return CCMenuItemExt::createSpriteExtra(sprite, [callback = std::move(callback)](auto) mutable {
@@ -27,21 +29,45 @@ static CCMenuItemSpriteExtra* createToolButton(
     });
 }
 
+static CCMenuItemSpriteExtra* createInfoButton(char const* infoText) {
+    auto* icon = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
+    if (!icon) {
+        return nullptr;
+    }
+
+    icon->setScale(0.65f);
+    return CCMenuItemExt::createSpriteExtra(icon, [infoText](auto) {
+        FLAlertLayer::create("Edit Tools", infoText, "Ok")->show();
+    });
+}
+
 class ToolsPopup : public Popup {
 protected:
     EditorUI* m_editorUI = nullptr;
 
-    void addToolButton(char const* frameName, cocos2d::CCPoint position, geode::Function<void()> callback) {
-        auto* button = createToolButton(frameName, 0.85f, std::move(callback));
+    void addToolButton(
+        char const* frameName,
+        cocos2d::CCPoint position,
+        char const* infoText,
+        geode::Function<void()> callback
+    ) {
+        auto* button = createToolButton(frameName, 0.82f, std::move(callback));
         if (!button) {
             return;
         }
 
         m_buttonMenu->addChildAtPosition(button, Anchor::Center, position);
+
+        auto* infoButton = createInfoButton(infoText);
+        if (!infoButton) {
+            return;
+        }
+
+        m_buttonMenu->addChildAtPosition(infoButton, Anchor::Center, ccp(position.x + 18.f, position.y + 16.f));
     }
 
     bool init(EditorUI* editorUI) {
-        if (!Popup::init(290.f, 150.f, "GJ_square02.png")) {
+        if (!Popup::init(270.f, 205.f, "GJ_square02.png")) {
             return false;
         }
 
@@ -51,44 +77,100 @@ protected:
         m_closeBtn->setVisible(false);
         m_closeBtn->setEnabled(false);
 
-        float spacing = 36.f;
-        float startX = -spacing * 3.f;
-        float rowY = 8.f;
+        constexpr float columnSpacing = 62.f;
+        constexpr float rowSpacing = 52.f;
+        float startX = -93.f;
+        float topRowY = 26.f;
+        float bottomRowY = topRowY - rowSpacing;
 
-        this->addToolButton("connect.png"_spr, ccp(startX + spacing * 0.f, rowY), [this]() {
+        this->addToolButton(
+            "connect.png"_spr,
+            ccp(startX + columnSpacing * 0.f, topRowY),
+            "Select <cy>two objects</c>. Creates copies between them. Which object's visual properties are used depends on the tool settings",
+            [this]() {
             this->onClose(nullptr);
             tools::connectObjects(m_editorUI, nullptr);
         });
-        this->addToolButton("fill.png"_spr, ccp(startX + spacing * 1.f, rowY), [this]() {
+        this->addToolButton(
+            "fill.png"_spr,
+            ccp(startX + columnSpacing * 1.f, topRowY),
+            "Select <cy>two corner objects</c>. Fills the area between them with copies using the current fill settings",
+            [this]() {
             this->onClose(nullptr);
             tools::fillObjects(m_editorUI, nullptr);
         });
-        this->addToolButton("replace.png"_spr, ccp(startX + spacing * 2.f, rowY), [this]() {
+        this->addToolButton(
+            "replace.png"_spr,
+            ccp(startX + columnSpacing * 2.f, topRowY),
+            "Select <cy>two objects</c>. Replaces the first object's ID with the second object's ID. With the setting enabled, it swaps both objects",
+            [this]() {
             this->onClose(nullptr);
             tools::replaceObjectType(m_editorUI, nullptr);
         });
-        this->addToolButton("circle.png"_spr, ccp(startX + spacing * 3.f, rowY), [this]() {
+        this->addToolButton(
+            "replicate.png"_spr,
+            ccp(startX + columnSpacing * 3.f, topRowY),
+            "Select the <cy>main object first</c>, then any number of other objects. All following objects will be recreated with the main object's ID",
+            [this]() {
+            this->onClose(nullptr);
+            tools::replicateObject(m_editorUI, nullptr);
+        });
+        this->addToolButton(
+            "circle.png"_spr,
+            ccp(startX + columnSpacing * 0.f, bottomRowY),
+            "Select <cy>two objects</c>. One is the center and the other is the source placed on the circle. The tool creates a ring of copies around the center",
+            [this]() {
             this->onClose(nullptr);
             tools::circleObjects(m_editorUI, nullptr);
         });
-        this->addToolButton("grouped.png"_spr, ccp(startX + spacing * 4.f, rowY), [this]() {
+        this->addToolButton(
+            "grouped.png"_spr,
+            ccp(startX + columnSpacing * 1.f, bottomRowY),
+            "If you select <cy>triggers and objects</c>, the tool gives the objects a free group and assigns that group to the triggers. If you select <cy>only triggers</c>, the first selected trigger becomes the activator and all later triggers are grouped to its target group",
+            [this]() {
             this->onClose(nullptr);
             tools::connectTrigger(m_editorUI, nullptr);
         });
-        this->addToolButton("ungrouped.png"_spr, ccp(startX + spacing * 5.f, rowY), [this]() {
+        this->addToolButton(
+            "ungrouped.png"_spr,
+            ccp(startX + columnSpacing * 2.f, bottomRowY),
+            "Select <cy>triggers and objects</c>. Removes the objects from the target groups used by the selected triggers. It can also clear the target group on the triggers if the setting is enabled",
+            [this]() {
             this->onClose(nullptr);
             tools::disconnectTrigger(m_editorUI, nullptr);
         });
-        this->addToolButton("settings.png"_spr, ccp(startX + spacing * 6.f, rowY), []() {
-            geode::openSettingsPopup(Mod::get(), false);
+        this->addToolButton(
+            "spawned.png"_spr,
+            ccp(startX + columnSpacing * 3.f, bottomRowY),
+            "Select the triggers you want to wrap into a spawn setup. They get a free group, spawn trigger is enabled on them, an optional multi trigger can also be enabled, and a new spawn trigger is created above them",
+            [this]() {
+            this->onClose(nullptr);
+            tools::spawnedTrigger(m_editorUI, nullptr);
         });
+
+        constexpr float bottomControlsY = 24.f;
+        constexpr float settingsInsetX = 26.f;
+
+        if (auto* settingsButton = createToolButton("settings.png"_spr, 0.72f, []() {
+            geode::openSettingsPopup(Mod::get(), false);
+        }, "GJ_button_04.png")) {
+            m_buttonMenu->addChildAtPosition(
+                settingsButton,
+                Anchor::BottomLeft,
+                ccp(settingsInsetX, bottomControlsY)
+            );
+        }
 
         auto* okSprite = ButtonSprite::create("OK", "goldFont.fnt", "GJ_button_01.png", 1.5f);
         okSprite->setScale(1.0f);
         auto* okButton = CCMenuItemExt::createSpriteExtra(okSprite, [this](auto) {
             this->onClose(nullptr);
         });
-        m_buttonMenu->addChildAtPosition(okButton, Anchor::Center, ccp(0.f, -42.f));
+        m_buttonMenu->addChildAtPosition(
+            okButton,
+            Anchor::Bottom,
+            ccp(0.f, bottomControlsY)
+        );
 
         return true;
     }
@@ -177,6 +259,20 @@ static void registerKeybinds() {
         return true;
     });
 
+    listenForKeybindSettingPresses("keybind-replicate-object", [](auto const&, bool down, bool repeat, double) {
+        if (!down || repeat) {
+            return false;
+        }
+
+        auto* editorUI = EditorUI::get();
+        if (!editorUI) {
+            return false;
+        }
+
+        tools::replicateObject(editorUI, nullptr);
+        return true;
+    });
+
     listenForKeybindSettingPresses("keybind-circle", [](auto const&, bool down, bool repeat, double) {
         if (!down || repeat) {
             return false;
@@ -218,21 +314,26 @@ static void registerKeybinds() {
         tools::disconnectTrigger(editorUI, nullptr);
         return true;
     });
+
+    listenForKeybindSettingPresses("keybind-spawned-trigger", [](auto const&, bool down, bool repeat, double) {
+        if (!down || repeat) {
+            return false;
+        }
+
+        auto* editorUI = EditorUI::get();
+        if (!editorUI) {
+            return false;
+        }
+
+        tools::spawnedTrigger(editorUI, nullptr);
+        return true;
+    });
 }
 
 class $modify(EditTools, EditorUI) {
     void createMoveMenu() {
         registerKeybinds();
         EditorUI::createMoveMenu();
-
-        auto addToolbarButton = [this](char const* frameName, geode::Function<void()> callback) {
-            auto* button = createToolButton(frameName, 1.0f, std::move(callback));
-            if (!button) {
-                return;
-            }
-
-            m_editButtonBar->m_buttonArray->addObject(button);
-        };
 
         if (auto* button = createToolButton("menu.png"_spr, 1.0f, [this]() {
             openToolsPopup(this);
@@ -264,6 +365,14 @@ class $modify(EditTools, EditorUI) {
             }
         }
 
+        if (Mod::get()->getSettingValue<bool>("toolbar-show-replicate")) {
+            if (auto* button = createToolButton("replicate.png"_spr, 1.0f, [this]() {
+                tools::replicateObject(this, nullptr);
+            })) {
+                m_editButtonBar->m_buttonArray->addObject(button);
+            }
+        }
+
         if (Mod::get()->getSettingValue<bool>("toolbar-show-circle")) {
             if (auto* button = createToolButton("circle.png"_spr, 1.0f, [this]() {
                 tools::circleObjects(this, nullptr);
@@ -283,6 +392,14 @@ class $modify(EditTools, EditorUI) {
         if (Mod::get()->getSettingValue<bool>("toolbar-show-disconnect-trigger")) {
             if (auto* button = createToolButton("ungrouped.png"_spr, 1.0f, [this]() {
                 tools::disconnectTrigger(this, nullptr);
+            })) {
+                m_editButtonBar->m_buttonArray->addObject(button);
+            }
+        }
+
+        if (Mod::get()->getSettingValue<bool>("toolbar-show-spawned")) {
+            if (auto* button = createToolButton("spawned.png"_spr, 1.0f, [this]() {
+                tools::spawnedTrigger(this, nullptr);
             })) {
                 m_editButtonBar->m_buttonArray->addObject(button);
             }

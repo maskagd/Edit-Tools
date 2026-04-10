@@ -8,9 +8,11 @@ It <cf>includes tools</c> for:
 - connecting objects between two selected points
 - filling an area with objects
 - replacing one object type with another
+- replicating the first object's type onto other objects
 - creating circles of objects
 - connecting triggers to objects
 - disconnecting triggers from objects
+- wrapping selected triggers into a spawned setup
 
 The mod also includes a <cy>optional toolbar buttons</c>, configurable hotkeys, and <cy>settings for each tool</c>
 
