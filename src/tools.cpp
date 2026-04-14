@@ -55,7 +55,6 @@ namespace tools {
             }
 
             editorUI->updateButtons();
-            editorUI->updateEditMenu();
             editorUI->updateObjectInfoLabel();
         }
 
@@ -90,6 +89,35 @@ namespace tools {
             editorLayer->addToGroup(object, groupID, false);
             if (!object->belongsToGroup(groupID)) {
                 object->addToGroup(groupID);
+            }
+        }
+
+        std::vector<int> getObjectGroups(GameObject* object) {
+            std::vector<int> groups;
+            if (!object || !object->m_groups) {
+                return groups;
+            }
+
+            for (int i = 0; i < object->m_groupCount; ++i) {
+                int groupID = object->m_groups->at(i);
+                if (groupID > 0) {
+                    groups.push_back(groupID);
+                }
+            }
+
+            return groups;
+        }
+
+        void clearObjectGroups(LevelEditorLayer* editorLayer, GameObject* object) {
+            if (!editorLayer || !object) {
+                return;
+            }
+
+            for (int groupID : getObjectGroups(object)) {
+                editorLayer->removeFromGroup(object, groupID);
+                if (object->belongsToGroup(groupID)) {
+                    object->removeFromGroup(groupID);
+                }
             }
         }
 
@@ -584,7 +612,7 @@ namespace tools {
 
         auto* selectedObjs = editorUI->getSelectedObjects();
         if (!selectedObjs || selectedObjs->count() < 2) {
-            FLAlertLayer::create("Edit Tools", "Select <cy>trigger</c> and <cy>objects</c>", "Ok")->show();
+            FLAlertLayer::create("Edit Tools", "Select <cy>trigger</c> and <cy>objects</c> or at least <cy>two triggers</c>", "Ok")->show();
             return;
         }
 
@@ -601,7 +629,19 @@ namespace tools {
             }
         }
 
-        if (effectObjects.empty() || gameObjects.empty()) {
+        if (gameObjects.empty()) {
+            if (effectObjects.size() < 2) {
+                FLAlertLayer::create("Edit Tools", "Select the <cy>source trigger</c> first, then the triggers to disconnect from it", "Ok")->show();
+                return;
+            }
+
+            for (size_t i = 1; i < effectObjects.size(); ++i) {
+                gameObjects.push_back(effectObjects[i]);
+            }
+            effectObjects.resize(1);
+        }
+
+        if (effectObjects.empty()) {
             FLAlertLayer::create("Edit Tools", "Need at least <cy>one trigger</c> and <cy>one object</c>", "Ok")->show();
             return;
         }
@@ -654,9 +694,6 @@ namespace tools {
 
         std::vector<EffectGameObject*> effectObjects;
         auto* selectedAfterSpawned = cocos2d::CCArray::create();
-        float minX = std::numeric_limits<float>::max();
-        float maxX = std::numeric_limits<float>::lowest();
-        float maxY = std::numeric_limits<float>::lowest();
 
         for (unsigned int i = 0; i < selectedObjs->count(); ++i) {
             auto* object = static_cast<GameObject*>(selectedObjs->objectAtIndex(i));
@@ -665,12 +702,7 @@ namespace tools {
             }
 
             auto* effectObject = static_cast<EffectGameObject*>(object);
-            auto position = effectObject->getPosition();
-            minX = std::min(minX, position.x);
-            maxX = std::max(maxX, position.x);
-            maxY = std::max(maxY, position.y);
             effectObjects.push_back(effectObject);
-            selectedAfterSpawned->addObject(effectObject);
         }
 
         if (effectObjects.empty()) {
@@ -681,12 +713,10 @@ namespace tools {
         auto* editorLayer = LevelEditorLayer::get();
         gd::unordered_set<int> excludedGroups;
         int groupID = editorLayer->getNextFreeGroupID(excludedGroups);
+        auto* firstTrigger = effectObjects.front();
 
         float gridSize = std::max(Mod::get()->getSettingValue<float>("grid-size"), 1.0f);
-        auto spawnTriggerPosition = ccp(
-            alignToGrid((minX + maxX) / 2.0f),
-            alignToGrid(maxY + std::max(gridSize * 3.0f, 90.0f))
-        );
+        auto spawnTriggerPosition = firstTrigger->getPosition();
 
         auto* spawnTriggerObject = editorLayer->createObject(kSpawnTriggerObjectID, spawnTriggerPosition, false);
         if (!spawnTriggerObject || !spawnTriggerObject->m_isTrigger) {
@@ -700,21 +730,49 @@ namespace tools {
 
         auto* spawnTrigger = static_cast<EffectGameObject*>(spawnTriggerObject);
         bool enableMultiTrigger = Mod::get()->getSettingValue<bool>("spawned-enable-multi-trigger");
+        bool useTouchTrigger = false;
 
+        copyObjectProperties(spawnTrigger, firstTrigger);
+        clearObjectGroups(editorLayer, spawnTrigger);
         for (auto* effectObject : effectObjects) {
+            for (int otherGroupID : getObjectGroups(effectObject)) {
+                assignGroup(editorLayer, spawnTrigger, otherGroupID);
+            }
+        }
+        spawnTrigger->setPosition(spawnTriggerPosition);
+
+        for (size_t i = 0; i < effectObjects.size(); ++i) {
+            auto* effectObject = effectObjects[i];
+            clearObjectGroups(editorLayer, effectObject);
             assignGroup(editorLayer, effectObject, groupID);
+            useTouchTrigger |= effectObject->m_isTouchTriggered;
             effectObject->m_isSpawnTriggered = true;
+            effectObject->m_isTouchTriggered = false;
             if (enableMultiTrigger) {
                 effectObject->m_isMultiTriggered = true;
             }
+
+            effectObject->setScaleX(1.0f);
+            effectObject->setScaleY(1.0f);
+            effectObject->setRotation(0.0f);
+            effectObject->setFlipX(false);
+            effectObject->setFlipY(false);
+            effectObject->setPosition(ccp(
+                alignToGrid(spawnTriggerPosition.x),
+                alignToGrid(spawnTriggerPosition.y + gridSize * static_cast<float>(i + 1))
+            ));
+
             refreshObjectState(editorLayer, effectObject, true);
+            selectedAfterSpawned->addObject(effectObject);
         }
 
         spawnTrigger->m_targetGroupID = groupID;
+        spawnTrigger->m_isTouchTriggered = useTouchTrigger;
+        spawnTrigger->m_isSpawnTriggered = false;
         refreshObjectState(editorLayer, spawnTrigger, true);
         editorLayer->dirtifyTriggers();
 
-        selectedAfterSpawned->addObject(spawnTrigger);
+        selectedAfterSpawned->insertObject(spawnTrigger, 0);
         selectObjectsAndRefresh(editorUI, selectedAfterSpawned);
     }
 }

@@ -10,12 +10,12 @@ It <cf>includes tools</c> for:
 - replacing one object type with another
 - replicating the first object's type onto other objects
 - creating circles of objects
-- connecting triggers to objectsы
+- connecting triggers to objects
 - disconnecting triggers from objects
 - wrapping selected triggers into a spawned setup
 
 The mod also includes a <cy>optional toolbar buttons</c>, configurable hotkeys, and <cy>settings for each tool</c>
 
-You can customize things like which object's properties are used, grid alignment, spacing, rotation, and other tool behavior
+For a more convenient experience, it is <cg>recommended to install</c> **Relocate Edit Buttons** by enimeoww:
 
-For a more convenient experience, it is <cg>recommended to install</c> [Relocate Edit Buttons](https://geode-sdk.org/mods/loovigmd.relocate_edit_buttons) by enimeoww
+<mod:loovigmd.relocate_edit_buttons>

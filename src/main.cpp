@@ -35,7 +35,7 @@ static CCMenuItemSpriteExtra* createInfoButton(char const* infoText) {
         return nullptr;
     }
 
-    icon->setScale(0.65f);
+    icon->setScale(0.78f);
     return CCMenuItemExt::createSpriteExtra(icon, [infoText](auto) {
         FLAlertLayer::create("Edit Tools", infoText, "Ok")->show();
     });
@@ -51,7 +51,7 @@ protected:
         char const* infoText,
         geode::Function<void()> callback
     ) {
-        auto* button = createToolButton(frameName, 0.82f, std::move(callback));
+        auto* button = createToolButton(frameName, 0.96f, std::move(callback));
         if (!button) {
             return;
         }
@@ -63,7 +63,7 @@ protected:
             return;
         }
 
-        m_buttonMenu->addChildAtPosition(infoButton, Anchor::Center, ccp(position.x + 18.f, position.y + 16.f));
+        m_buttonMenu->addChildAtPosition(infoButton, Anchor::Center, ccp(position.x + 22.f, position.y + 20.f));
     }
 
     bool init(EditorUI* editorUI) {
@@ -80,7 +80,7 @@ protected:
         constexpr float columnSpacing = 62.f;
         constexpr float rowSpacing = 52.f;
         float startX = -93.f;
-        float topRowY = 26.f;
+        float topRowY = 34.f;
         float bottomRowY = topRowY - rowSpacing;
 
         this->addToolButton(
@@ -134,7 +134,7 @@ protected:
         this->addToolButton(
             "ungrouped.png"_spr,
             ccp(startX + columnSpacing * 2.f, bottomRowY),
-            "Select <cy>triggers and objects</c>. Removes the objects from the target groups used by the selected triggers. It can also clear the target group on the triggers if the setting is enabled",
+            "Select <cy>triggers and objects</c> to remove the objects from the selected triggers' target groups. If you select <cy>only triggers</c>, the first trigger is used as the source trigger and the rest are treated like objects for the disconnect",
             [this]() {
             this->onClose(nullptr);
             tools::disconnectTrigger(m_editorUI, nullptr);
@@ -142,7 +142,7 @@ protected:
         this->addToolButton(
             "spawned.png"_spr,
             ccp(startX + columnSpacing * 3.f, bottomRowY),
-            "Select the triggers you want to wrap into a spawn setup. They get a free group, spawn trigger is enabled on them, an optional multi trigger can also be enabled, and a new spawn trigger is created above them",
+            "Select the <cy>triggers you want to wrap into a spawn setup</c>. The first trigger becomes the template for a new spawn trigger, its <cy>groups are moved to that spawn trigger</c>, the selected triggers keep only one new free group",
             [this]() {
             this->onClose(nullptr);
             tools::spawnedTrigger(m_editorUI, nullptr);

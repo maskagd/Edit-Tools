@@ -1,3 +1,8 @@
+# v1.2.1
+- fixed an editor bug related to tool usage
+- made small improvements to the tools menu
+- improved trigger tool behavior
+
 # v1.2.0
 - added Replicate Object tool
 - added Spawn Triggers tool
